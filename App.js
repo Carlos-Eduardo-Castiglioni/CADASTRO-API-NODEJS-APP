@@ -4,6 +4,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CadastroScreen = () => {
+  // Definindo os estados para os campos do formulário e funcionalidades auxiliares
   const [cpf, setCpf] = useState('');  
   const [cep, setCep] = useState('');
   const [nome, setNome] = useState('');
@@ -14,17 +15,17 @@ const CadastroScreen = () => {
   const [isConsulting, setIsConsulting] = useState(false);  
   const [editingCadastro, setEditingCadastro] = useState(null); // Estado para armazenar o cadastro em edição
 
-  // Carregar cadastros do AsyncStorage
+  // Função para carregar cadastros do banco de dados
   const loadCadastros = async () => {
     try {
-      const response = await axios.get('http://172.16.7.5:3000/consultar');  // Busca os cadastros no banco
+      const response = await axios.get('http://192.168.15.11:3000/consultar');  // Busca os cadastros no banco
       setCadastros(response.data);  // Atualiza a lista de cadastros com os dados do banco
     } catch (error) {
       console.error("Erro ao carregar cadastros:", error);
     }
   };
 
-  // Salvar cadastros no AsyncStorage
+  // Função para salvar cadastros no AsyncStorage (opcional, caso precise de armazenamento local)
   const saveCadastros = async (cadastros) => {
     try {
       await AsyncStorage.setItem('cadastros', JSON.stringify(cadastros));
@@ -33,8 +34,9 @@ const CadastroScreen = () => {
     }
   };
 
-  // Função para cadastrar um usuário
+  // Função para cadastrar um novo usuário
   const handleCadastro = async () => {
+    // Verifica se todos os campos estão preenchidos
     if (!cpf || !nome || !idade || !cep || !endereco) {
       Alert.alert('Erro', 'Por favor, preencha todos os campos.');
       return;
@@ -42,40 +44,73 @@ const CadastroScreen = () => {
   
     setLoading(true);
     try {
-      if (editingCadastro) {
-        // Atualiza o cadastro existente no banco de dados
-        await axios.put(`http://172.16.7.5:3000/atualizar/${cpf}`, {
-          cpf,
-          nome,
-          idade,
-          endereco
-        });
-  
-        Alert.alert('Sucesso', 'Cadastro atualizado com sucesso!');
-      } else {
-        // Cadastro novo no banco de dados
-        await axios.post('http://172.16.7.5:3000/cadastrar', {
-          cpf,
-          nome,
-          idade,
-          endereco
-        });
-  
-        Alert.alert('Sucesso', 'Cadastro realizado com sucesso!');
-      }
+      // Cadastro novo no banco de dados
+      await axios.post('http://192.168.15.11:3000/cadastrar', {
+        cpf,
+        nome,
+        idade,
+        endereco
+      });
+      Alert.alert('Sucesso', 'Cadastro realizado com sucesso!');
   
       setLoading(false);
   
       // Atualiza a lista de cadastros localmente após o cadastro
       const newCadastro = { cpf, nome, idade, endereco };
-      const updatedCadastros = editingCadastro
-        ? cadastros.map(cadastro =>
-            cadastro.cpf === editingCadastro.cpf ? newCadastro : cadastro
-          )
-        : [...cadastros, newCadastro];
+      const updatedCadastros = [...cadastros, newCadastro];
   
       setCadastros(updatedCadastros);
-      saveCadastros(updatedCadastros);
+      saveCadastros(updatedCadastros); // Salva no AsyncStorage
+  
+      // Limpa os campos
+      setCpf('');
+      setNome('');
+      setIdade('');
+      setCep('');
+      setEndereco('');
+    } catch (error) {
+      // Lida com diferentes tipos de erros
+      if (error.response) {
+        console.error("Erro no cadastro:", error.response.data);
+        Alert.alert('Erro', `Ocorreu um erro: ${error.response.data.message}`);
+      } else if (error.request) {
+        console.error("Erro no cadastro:", error.request);
+        Alert.alert('Erro', 'Ocorreu um erro ao tentar se comunicar com o servidor.');
+      } else {
+        console.error("Erro no cadastro:", error.message);
+        Alert.alert('Erro', `Erro desconhecido: ${error.message}`);
+      }
+      setLoading(false);
+    }
+  };
+
+  // Função para atualizar um cadastro existente
+  const handleAtualizar = async () => {
+    // Verifica se todos os campos estão preenchidos
+    if (!nome || !idade || !endereco) {
+      Alert.alert('Erro', 'Por favor, preencha todos os campos.');
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      // Atualiza o cadastro no banco de dados
+      await axios.put(`http://192.168.15.11:3000/atualizar/${cpf}`, {
+        nome,
+        idade,
+        endereco
+      });
+      Alert.alert('Sucesso', 'Cadastro atualizado com sucesso!');
+  
+      setLoading(false);
+  
+      // Atualiza a lista de cadastros localmente após a atualização
+      const updatedCadastros = cadastros.map(cadastro =>
+        cadastro.cpf === cpf ? { ...cadastro, nome, idade, endereco } : cadastro
+      );
+  
+      setCadastros(updatedCadastros);
+      saveCadastros(updatedCadastros);  // Salva no AsyncStorage
   
       // Limpa os campos
       setCpf('');
@@ -85,23 +120,20 @@ const CadastroScreen = () => {
       setEndereco('');
       setEditingCadastro(null); // Reseta o estado de edição
     } catch (error) {
+      // Lida com diferentes tipos de erros
       if (error.response) {
-        // O servidor respondeu com um status diferente de 2xx
-        console.error("Erro no cadastro:", error.response.data);
+        console.error("Erro ao atualizar cadastro:", error.response.data);
         Alert.alert('Erro', `Ocorreu um erro: ${error.response.data.message}`);
       } else if (error.request) {
-        // A solicitação foi feita, mas nenhuma resposta foi recebida
-        console.error("Erro no cadastro:", error.request);
+        console.error("Erro ao atualizar cadastro:", error.request);
         Alert.alert('Erro', 'Ocorreu um erro ao tentar se comunicar com o servidor.');
       } else {
-        // Algo aconteceu ao configurar a solicitação que desencadeou um erro
-        console.error("Erro no cadastro:", error.message);
+        console.error("Erro ao atualizar cadastro:", error.message);
         Alert.alert('Erro', `Erro desconhecido: ${error.message}`);
       }
       setLoading(false);
     }
   };
-  
 
   // Função para buscar o endereço automaticamente com base no CEP
   const buscarEnderecoPorCep = async (cep) => {
@@ -143,7 +175,7 @@ const CadastroScreen = () => {
     setLoading(true);  
     try {
       // Exclui o cadastro do banco de dados
-      await axios.delete(`http://172.16.7.5:3000/excluir/${cpf}`);
+      await axios.delete(`http://192.168.15.11:3000/excluir/${cpf}`);
 
       // Atualiza a lista de cadastros após a exclusão
       const updatedCadastros = cadastros.filter(cadastro => cadastro.cpf !== cpf);
@@ -179,8 +211,9 @@ const CadastroScreen = () => {
     setEditingCadastro(null);
   };
 
+  // Carrega os cadastros ao montar o componente
   useEffect(() => {
-    loadCadastros();  // Carrega os cadastros ao montar o componente
+    loadCadastros();
   }, []);
 
   return (
@@ -225,7 +258,7 @@ const CadastroScreen = () => {
 
         <Button
           title={loading ? 'Cadastrando...' : editingCadastro ? 'Atualizar' : 'Cadastrar'}
-          onPress={handleCadastro}
+          onPress={editingCadastro ? handleAtualizar : handleCadastro}
           disabled={loading}
         />
         
@@ -250,28 +283,17 @@ const CadastroScreen = () => {
       {isConsulting ? (
         <ActivityIndicator size="large" color="#0000ff" style={styles.loading} />
       ) : (
-        <View style={styles.cadastroList}>
-          {cadastros.length > 0 ? (
-            cadastros.map((cadastro, index) => (
-              <View key={index} style={styles.cadastroItem}>
-                <Text style={styles.cadastroText}>
-                  {cadastro.nome} - {cadastro.cpf}
-                </Text>
-                <Button
-                  title="Excluir"
-                  onPress={() => handleDelete(cadastro.cpf)}
-                  color="#ff0000"
-                />
-                <Button
-                  title="Editar"
-                  onPress={() => handleEdit(cadastro)}
-                  color="#4CAF50"
-                />
-              </View>
-            ))
-          ) : (
-            <Text style={styles.noCadastrosText}>Nenhum cadastro encontrado.</Text>
-          )}
+        <View style={styles.cadastrosContainer}>
+          {cadastros.map((cadastro) => (
+            <View key={cadastro.cpf} style={styles.cadastroItem}>
+              <Text>CPF: {cadastro.cpf}</Text>
+              <Text>Nome: {cadastro.nome}</Text>
+              <Text>Idade: {cadastro.idade}</Text>
+              <Text>Endereço: {cadastro.endereco}</Text>
+              <Button title="Editar" onPress={() => handleEdit(cadastro)} />
+              <Button title="Excluir" onPress={() => handleDelete(cadastro.cpf)} color="#ff0000" />
+            </View>
+          ))}
         </View>
       )}
     </ScrollView>
@@ -281,73 +303,55 @@ const CadastroScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 16,
-    backgroundColor: '#f4f4f4',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#fff',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center',
   },
   form: {
-    width: '100%',
-    maxWidth: 400,
+    marginBottom: 20,
   },
   input: {
-    height: 45,
-    borderColor: '#ddd',
+    height: 40,
+    borderColor: 'gray',
     borderWidth: 1,
-    borderRadius: 5,
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
-  },
-  loading: {
-    marginVertical: 16,
-  },
-  divider: {
-    marginVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
+    marginBottom: 10,
+    paddingLeft: 10,
   },
   button: {
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 5,
-    marginBottom: 16,
+    backgroundColor: '#007BFF',
+    padding: 10,
     alignItems: 'center',
+    marginBottom: 20,
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
   },
-  cadastroList: {
+  cadastrosContainer: {
     marginTop: 20,
   },
   cadastroItem: {
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 5,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 2,
+    marginBottom: 20,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'gray',
   },
-  cadastroText: {
-    fontSize: 16,
-    fontWeight: '500',
+  loading: {
+    marginTop: 20,
   },
-  noCadastrosText: {
-    fontSize: 16,
-    color: '#888',
-    textAlign: 'center',
+  divider: {
+    height: 1,
+    backgroundColor: 'gray',
+    marginVertical: 20,
   },
   cancelButton: {
     marginTop: 10,
-  }
+  },
 });
 
 export default CadastroScreen;
